@@ -1,12 +1,12 @@
 `include "setsize.v"
 `include "ifetch.v"
 `include "decoder.v"
-`include "regfile.v"
-`include "rs.v"
+`include "mem_ctrl.v"
 `include "alu.v"
+`include "rs.v"
+`include "regfile.v"
 `include "rob.v"
 `include "lsb.v"
-`include "mem_ctrl.v"
 
 module cpu(
     input  wire                 clk_in,     // system clock signal
@@ -32,24 +32,25 @@ wire rob_nxt_full;
 //ifetch <-> mem_ctrl
 wire ifetch_to_memctrl_en;
 wire [`ADDR_WID] ifetch_to_memctrl_pc;
-wire memctrl_to_ifetch_done;
 wire [`IF_DATA_WID] memctrl_to_ifetch_data;
+wire memctrl_to_ifetch_done;
 
 //LSB <-> mem_ctrl
 wire lsb_to_memctrl_en;
 wire lsb_to_memctrl_wr;
-wire [`ADDR_WID] lsb_to_memctrl_addr;
 wire [2:0] lsb_to_memctrl_len;
-wire [`DATA_WID] lsb_to_memctrl_w_data;
 wire memctrl_to_lsb_done;
+wire [`DATA_WID] lsb_to_memctrl_w_data;
 wire [`DATA_WID] memctrl_to_lsb_r_data;
+wire [`ADDR_WID] lsb_to_memctrl_addr;
 
 //rob -> ifetch
-wire rob_to_ifetch_set_pc_en;
-wire [`ADDR_WID] rob_to_ifetch_set_pc;
 wire rob_to_ifetch_br;
 wire rob_to_ifetch_br_jump;
 wire [`ADDR_WID] rob_to_ifetch_br_pc;
+
+wire rob_to_ifetch_set_pc_en;
+wire [`ADDR_WID] rob_to_ifetch_set_pc;
 
 //ifetch -> decoder
 wire ifetch_to_decoder_inst_rdy;
@@ -60,19 +61,19 @@ wire ifetch_to_decoder_inst_pred_jump;
 // decoder issue
 wire issue;
 wire [`ROB_POS_WID] issue_rob_pos;
+wire [`ADDR_WID] issue_pc;
 wire [`OPCODE_WID] issue_opcode;
-wire issue_is_store;
 wire [`FUNCT3_WID] issue_funct3;
 wire issue_funct7;
+wire [`REG_POS_WID] issue_rd;
 wire [`DATA_WID] issue_rs1_val;
 wire [`ROB_ID_WID] issue_rs1_rob_id;
 wire [`DATA_WID] issue_rs2_val;
 wire [`ROB_ID_WID] issue_rs2_rob_id;
 wire [`DATA_WID] issue_imm;
-wire [`REG_POS_WID] issue_rd;
-wire [`ADDR_WID] issue_pc;
 wire issue_pred_jump;
 wire issue_is_ready;
+wire issue_is_store;
 
 // decoder <- regfile
 wire [`REG_POS_WID] decoder_query_reg_rs1;
@@ -112,10 +113,10 @@ wire [`ROB_POS_WID] rob_head_pos;
 
 //alu broadcast
 wire cdb_alu_result;
-wire [`ROB_POS_WID] cdb_alu_result_rob_pos;
-wire [`DATA_WID] cdb_alu_result_val;
 wire [`ADDR_WID] cdb_alu_result_pc;
 wire cdb_alu_result_jump;
+wire [`ROB_POS_WID] cdb_alu_result_rob_pos;
+wire [`DATA_WID] cdb_alu_result_val;
 
 //lsb broadcast
 wire cdb_lsb_result;
@@ -124,14 +125,14 @@ wire [`DATA_WID] cdb_lsb_result_val;
 
 //rs -> alu
 wire rs_to_alu_en;
+wire [`ADDR_WID] rs_to_alu_pc;
+wire [`ROB_POS_WID] rs_to_alu_rob_pos;
 wire [`OPCODE_WID] rs_to_alu_opcode;
 wire [`FUNCT3_WID] rs_to_alu_funct3;
 wire rs_to_alu_funct7;
 wire [`DATA_WID] rs_to_alu_val1;
 wire [`DATA_WID] rs_to_alu_val2;
 wire [`DATA_WID] rs_to_alu_imm;
-wire [`ADDR_WID] rs_to_alu_pc;
-wire [`ROB_POS_WID] rs_to_alu_rob_pos;
 
 MemCtrl u_MemCtrl(
     .clk(clk_in),
@@ -149,11 +150,11 @@ MemCtrl u_MemCtrl(
     .if_data(memctrl_to_ifetch_data),
     .lsb_en(lsb_to_memctrl_en),
     .lsb_wr(lsb_to_memctrl_wr),
+    .lsb_w_data(lsb_to_memctrl_w_data),
+    .lsb_r_data(memctrl_to_lsb_r_data),
     .lsb_addr(lsb_to_memctrl_addr),
     .lsb_len(lsb_to_memctrl_len),
-    .lsb_w_data(lsb_to_memctrl_w_data),
-    .lsb_done(memctrl_to_lsb_done),
-    .lsb_r_data(memctrl_to_lsb_r_data)
+    .lsb_done(memctrl_to_lsb_done)
 );
 
 IFetch u_IFetch (
@@ -163,6 +164,11 @@ IFetch u_IFetch (
     .rs_nxt_full(rs_nxt_full),
     .lsb_nxt_full(lsb_nxt_full),
     .rob_nxt_full(rob_nxt_full),
+    .rob_set_pc_en(rob_to_ifetch_set_pc_en),
+    .rob_set_pc(rob_to_ifetch_set_pc),
+    .rob_br(rob_to_ifetch_br),
+    .rob_br_jump(rob_to_ifetch_br_jump),
+    .rob_br_pc(rob_to_ifetch_br_pc),
     .inst_rdy(ifetch_to_decoder_inst_rdy),
     .inst(ifetch_to_decoder_inst),
     .inst_pc(ifetch_to_decoder_inst_pc),
@@ -170,12 +176,7 @@ IFetch u_IFetch (
     .mc_en(ifetch_to_memctrl_en),
     .mc_pc(ifetch_to_memctrl_pc),
     .mc_done(memctrl_to_ifetch_done),
-    .mc_data(memctrl_to_ifetch_data),
-    .rob_set_pc_en(rob_to_ifetch_set_pc_en),
-    .rob_set_pc(rob_to_ifetch_set_pc),
-    .rob_br(rob_to_ifetch_br),
-    .rob_br_jump(rob_to_ifetch_br_jump),
-    .rob_br_pc(rob_to_ifetch_br_pc)
+    .mc_data(memctrl_to_ifetch_data)
 );
 
 Decoder u_Decoder (
@@ -236,16 +237,16 @@ RegFile u_RegFile (
     .rdy(rdy_in),
     .rollback(rollback),
 
+    .issue(issue),
+    .issue_rd(issue_rd),
+    .issue_rob_pos(issue_rob_pos),
+
     .rs1(decoder_query_reg_rs1),
     .val1(decoder_query_reg_rs1_val),
     .rob_id1(decoder_query_reg_rs1_rob_id),
     .rs2(decoder_query_reg_rs2),
     .val2(decoder_query_reg_rs2_val),
     .rob_id2(decoder_query_reg_rs2_rob_id),
-
-    .issue(issue),
-    .issue_rd(issue_rd),
-    .issue_rob_pos(issue_rob_pos),
 
     .commit(rob_to_reg_write),
     .commit_rd(rob_to_reg_rd),
@@ -260,6 +261,16 @@ RS u_RS (
     .rollback(rollback),
     .rs_nxt_full(rs_nxt_full),
 
+    .alu_en(rs_to_alu_en),
+    .alu_opcode(rs_to_alu_opcode),
+    .alu_funct3(rs_to_alu_funct3),
+    .alu_funct7(rs_to_alu_funct7),
+    .alu_val1(rs_to_alu_val1),
+    .alu_val2(rs_to_alu_val2),
+    .alu_imm(rs_to_alu_imm),
+    .alu_pc(rs_to_alu_pc),
+    .alu_rob_pos(rs_to_alu_rob_pos),
+
     .issue(decoder_to_rs_en),
     .issue_rob_pos(issue_rob_pos),
     .issue_opcode(issue_opcode),
@@ -271,16 +282,6 @@ RS u_RS (
     .issue_rs2_rob_id(issue_rs2_rob_id),
     .issue_imm(issue_imm),
     .issue_pc(issue_pc),
-
-    .alu_en(rs_to_alu_en),
-    .alu_opcode(rs_to_alu_opcode),
-    .alu_funct3(rs_to_alu_funct3),
-    .alu_funct7(rs_to_alu_funct7),
-    .alu_val1(rs_to_alu_val1),
-    .alu_val2(rs_to_alu_val2),
-    .alu_imm(rs_to_alu_imm),
-    .alu_pc(rs_to_alu_pc),
-    .alu_rob_pos(rs_to_alu_rob_pos),
 
     .alu_result(cdb_alu_result),
     .alu_result_rob_pos(cdb_alu_result_rob_pos),
@@ -298,14 +299,14 @@ ALU u_ALU(
     .rollback(rollback),
 
     .alu_en(rs_to_alu_en),
+    .pc(rs_to_alu_pc),
+    .rob_pos(rs_to_alu_rob_pos),
     .opcode(rs_to_alu_opcode),
     .funct3(rs_to_alu_funct3),
     .funct7(rs_to_alu_funct7),
     .val1(rs_to_alu_val1),
     .val2(rs_to_alu_val2),
     .imm(rs_to_alu_imm),
-    .pc(rs_to_alu_pc),
-    .rob_pos(rs_to_alu_rob_pos),
 
     .result(cdb_alu_result),
     .result_rob_pos(cdb_alu_result_rob_pos),
@@ -333,11 +334,11 @@ LSB u_LSB (
 
     .mc_en(lsb_to_memctrl_en),
     .mc_wr(lsb_to_memctrl_wr),
+    .mc_w_data(lsb_to_memctrl_w_data),
+    .mc_r_data(memctrl_to_lsb_r_data),
     .mc_addr(lsb_to_memctrl_addr),
     .mc_len(lsb_to_memctrl_len),
-    .mc_w_data(lsb_to_memctrl_w_data),
     .mc_done(memctrl_to_lsb_done),
-    .mc_r_data(memctrl_to_lsb_r_data),
 
     .result(cdb_lsb_result),
     .result_rob_pos(cdb_lsb_result_rob_pos),
@@ -362,6 +363,7 @@ ROB u_ROB (
     .rdy(rdy_in),
     .rob_nxt_full(rob_nxt_full),
     .rollback(rollback),
+    .nxt_rob_pos(nxt_rob_pos),
 
     .if_set_pc_en(rob_to_ifetch_set_pc_en),
     .if_set_pc(rob_to_ifetch_set_pc),
@@ -383,6 +385,13 @@ ROB u_ROB (
     .commit_br_jump(rob_to_ifetch_br_jump),
     .commit_br_pc(rob_to_ifetch_br_pc),
 
+    .rs1_pos(decoder_query_rob_rs1_pos),
+    .rs1_ready(decoder_query_rob_rs1_ready),
+    .rs1_val(decoder_query_rob_rs1_val),
+    .rs2_pos(decoder_query_rob_rs2_pos),
+    .rs2_ready(decoder_query_rob_rs2_ready),
+    .rs2_val(decoder_query_rob_rs2_val),
+    
     .alu_result(cdb_alu_result),
     .alu_result_rob_pos(cdb_alu_result_rob_pos),
     .alu_result_val(cdb_alu_result_val),
@@ -391,15 +400,6 @@ ROB u_ROB (
 
     .lsb_result(cdb_lsb_result),
     .lsb_result_rob_pos(cdb_lsb_result_rob_pos),
-    .lsb_result_val(cdb_lsb_result_val),
-
-    .rs1_pos(decoder_query_rob_rs1_pos),
-    .rs1_ready(decoder_query_rob_rs1_ready),
-    .rs1_val(decoder_query_rob_rs1_val),
-    .rs2_pos(decoder_query_rob_rs2_pos),
-    .rs2_ready(decoder_query_rob_rs2_ready),
-    .rs2_val(decoder_query_rob_rs2_val),
-    
-    .nxt_rob_pos(nxt_rob_pos)
+    .lsb_result_val(cdb_lsb_result_val)
 );
 endmodule

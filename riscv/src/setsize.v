@@ -11,24 +11,24 @@
 `define REG_POS_WID 4:0
 `define ROB_ID_WID 4:0
 
-`define ICACHE_BLK_NUM 16
-`define ICACHE_BLK_SIZE 64
-`define ICACHE_BLK_WID 511:0
-`define ICACHE_BS_RANGE 5:2
-`define ICACHE_BS_WID 3:0
-`define ICACHE_IDX_RANGE 9:6
-`define ICACHE_IDX_WID 3:0
-`define ICACHE_TAG_RANGE 31:10
-`define ICACHE_TAG_WID 21:0
+`define ICACHE_BLK_NUM 512
+`define ICACHE_BLK_SIZE 1
+`define ICACHE_BLK_WID 31:0
+// `define ICACHE_BS_RANGE 5:2
+// `define ICACHE_BS_WID 3:0
+`define ICACHE_IDX_RANGE 10:2
+`define ICACHE_IDX_WID 8:0
+`define ICACHE_TAG_RANGE 31:11
+`define ICACHE_TAG_WID 20:0
 
 `define MEM_CTRL_LEN_WID 6:0
-`define MEM_CTRL_IF_DATA_LEN 64
-`define IF_DATA_WID 511:0
+`define MEM_CTRL_IF_DATA_LEN 4
+`define IF_DATA_WID 31:0
 `define INST_SIZE 4
 
-`define BHT_SIZE 256
-`define BHT_IDX_RANGE 9:2
-`define BHT_IDX_WID 7:0
+`define BHT_SIZE 512
+`define BHT_IDX_RANGE 10:2
+`define BHT_IDX_WID 8:0
 
 `define LSB_SIZE 16
 `define LSB_POS_WID 3:0

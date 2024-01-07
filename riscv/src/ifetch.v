@@ -38,13 +38,13 @@ module IFetch (
     // ICache
     reg valid[`ICACHE_BLK_NUM-1:0];
     reg [`ICACHE_TAG_WID] tag[`ICACHE_BLK_NUM-1:0];
-    reg [`ICACHE_BLK_WID] data[`ICACHE_BLK_NUM-1:0];
+    reg [`ICACHE_BLK_WID] data[`ICACHE_BLK_NUM-1:0];//512*4 byte
 
     // Branch Predictor
     reg [`ADDR_WID] pred_pc;
     reg pred_jump;
 
-    wire [`ICACHE_BS_WID] pc_bs = pc[`ICACHE_BS_RANGE];
+    // wire [`ICACHE_BS_WID] pc_bs = pc[`ICACHE_BS_RANGE];
     wire [`ICACHE_IDX_WID] pc_index = pc[`ICACHE_IDX_RANGE];
     wire [`ICACHE_TAG_WID] pc_tag = pc[`ICACHE_TAG_RANGE];
     wire hit = valid[pc_index] && (tag[pc_index] == pc_tag);
@@ -52,20 +52,21 @@ module IFetch (
     wire [`ICACHE_IDX_WID] mc_pc_index = mc_pc[`ICACHE_IDX_RANGE];
     wire [`ICACHE_TAG_WID] mc_pc_tag = mc_pc[`ICACHE_TAG_RANGE];
 
-    wire [`ICACHE_BLK_WID] cur_block_raw = data[pc_index];
-    wire [`INST_WID] cur_block[15:0];
-    wire [`INST_WID] get_inst = cur_block[pc_bs];
+    // wire [`ICACHE_BLK_WID] cur_block_raw = data[pc_index];
+    // wire [`INST_WID] cur_block[15:0];
+    // wire [`INST_WID] get_inst = cur_block[pc_bs];
+    wire [`ICACHE_BLK_WID] get_inst = data[pc_index];
 
     reg [1:0] bht[`BHT_SIZE-1:0];
     wire [`BHT_IDX_WID] bht_idx = rob_br_pc[`BHT_IDX_RANGE];
     wire [`BHT_IDX_WID] pc_bht_idx = pc[`BHT_IDX_RANGE];
 
-    genvar x;
-    generate
-        for (x = 0; x < `ICACHE_BLK_SIZE / `INST_SIZE; x = x + 1) begin
-            assign cur_block[x] = cur_block_raw[x * 32 + 31 : x * 32];
-        end
-    endgenerate
+    // genvar x;
+    // generate
+    //     for (x = 0; x < `ICACHE_BLK_SIZE / `INST_SIZE; x = x + 1) begin
+    //         assign cur_block[x] = cur_block_raw[x * 32 + 31 : x * 32];
+    //     end
+    // endgenerate
 
     // Branch Predictor
     always @(*) begin
@@ -112,7 +113,7 @@ module IFetch (
             if (status == 1'b0) begin
                 if (!hit) begin
                     mc_en <= 1;
-                    mc_pc <= {pc[`ICACHE_TAG_RANGE], pc[`ICACHE_IDX_RANGE], 6'b0};
+                    mc_pc <= {pc[`ICACHE_TAG_RANGE], pc[`ICACHE_IDX_RANGE], 2'b0};
                     status <= 1'b1;
                 end
             end else begin

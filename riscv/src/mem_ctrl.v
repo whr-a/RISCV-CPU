@@ -57,7 +57,7 @@ module MemCtrl (
         end else begin
             mem_wr <= 0;
             case (status)
-                2'b01: begin
+                2'b01: begin//ifetch
                     if_data_arr[stage-1] <= mem_din;
                     if (stage + 1 == len) mem_a <= 0;
                     else mem_a <= mem_a + 1;
@@ -71,7 +71,7 @@ module MemCtrl (
                         stage <= stage + 1;
                     end
                 end
-                2'b10: begin
+                2'b10: begin//load
                     if (rollback) begin
                         lsb_done <= 0;
                         mem_wr <= 0;
@@ -98,7 +98,7 @@ module MemCtrl (
                         end
                     end
                 end
-                2'b11: begin
+                2'b11: begin//store
                     if (store_addr[17:16] != 2'b11 || !io_buffer_full) begin
                         mem_wr <= 1;
                         case (stage)
@@ -120,7 +120,7 @@ module MemCtrl (
                         end
                     end
                 end
-                2'b0: begin
+                2'b0: begin//idle
                     if (if_done || lsb_done) begin
                         if_done <= 0;
                         lsb_done <= 0;
