@@ -1,42 +1,57 @@
-`ifndef SetSize
-`define SetSize
-`define INST_BYTE_SIZE 4
-`define INST_WID 31:0//ָ�����
-`define DATA_WID 31:0//���ݿ���
-`define ADDR_WID 31:0//��ַ����
+`ifndef SETSIZE
+`define SETSIZE
 
-`define BYTE_WID 7:0
-`define ICACHE_BLK_SIZE 64
-`define ICACHE_BLK_WID 511:0
-`define ICACHE_BLK_NUM 16//����16��64�е�cache����
-`define ICACHE_TAG_WID 21:0
-`define ICACHE_TAG_RANGE 31:10
-`define ICACHE_INDEX_WID 3:0
-`define ICACHE_INDEX_RANGE 9:6
-`define ICACHE_BYTESELECT_WID 3:0
-`define ICACHE_BYTESELECT_RANGE 5:2//��Ϊ��ȡָ������4byte��ȡ������Ϊaddress�����λû������
-
-`define MEMCTRL_TOTAL_WID 6:0
 `define REG_SIZE 32
 `define ROB_SIZE 16
+
+`define INST_WID 31:0
+`define DATA_WID 31:0
+`define ADDR_WID 31:0
 `define ROB_POS_WID 3:0
 `define REG_POS_WID 4:0
 `define ROB_ID_WID 4:0
 
-`define OPCODE_RANGE 6:0
-`define OPCODE_WID 6:0
+`define ICACHE_BLK_NUM 16
+`define ICACHE_BLK_SIZE 64
+`define ICACHE_BLK_WID 511:0
+`define ICACHE_BS_RANGE 5:2
+`define ICACHE_BS_WID 3:0
+`define ICACHE_IDX_RANGE 9:6
+`define ICACHE_IDX_WID 3:0
+`define ICACHE_TAG_RANGE 31:10
+`define ICACHE_TAG_WID 21:0
 
+`define MEM_CTRL_LEN_WID 6:0
+`define MEM_CTRL_IF_DATA_LEN 64
+`define IF_DATA_WID 511:0
+`define INST_SIZE 4
+
+`define BHT_SIZE 256
+`define BHT_IDX_RANGE 9:2
+`define BHT_IDX_WID 7:0
+
+`define LSB_SIZE 16
+`define LSB_POS_WID 3:0
+`define LSB_ID_WID 4:0
+`define LSB_NONE 5'd16
+
+`define RS_SIZE 16
+`define RS_POS_WID 3:0
+`define RS_ID_WID 4:0
+`define RS_NONE 5'd16
+
+`define OPCODE_WID 6:0
+`define OPCODE_RANGE 6:0
 `define FUNCT3_WID 2:0
-`define FUNCT3_RANGE 14:12
 `define RD_RANGE 11:7
+`define FUNCT3_RANGE 14:12
 `define RS1_RANGE 19:15
 `define RS2_RANGE 24:20
 
-
 `define OPCODE_L      7'b0000011
 `define OPCODE_S      7'b0100011
-`define OPCODE_ARITHI 7'b0010011
-`define OPCODE_ARITH  7'b0110011
+`define OPCODE_CALCUI 7'b0010011
+`define OPCODE_CALCU  7'b0110011
 `define OPCODE_LUI    7'b0110111
 `define OPCODE_AUIPC  7'b0010111
 `define OPCODE_JAL    7'b1101111
@@ -89,13 +104,4 @@
 `define FUNCT3_BLTU 3'h6
 `define FUNCT3_BGEU 3'h7
 
-`define RS_SIZE 16
-`define RS_POS_WID 3:0
-`define RS_ID_WID 4:0
-`define RS_NPOS 5'd16
-
-`define LSB_SIZE 16
-`define LSB_POS_WID 3:0
-`define LSB_ID_WID 4:0
-`define LSB_NPOS 5'd16
 `endif
