@@ -25,9 +25,9 @@ module cpu(
 
 wire rollback;
 
+wire rob_nxt_full;
 wire rs_nxt_full;
 wire lsb_nxt_full;
-wire rob_nxt_full;
 
 //ifetch <-> mem_ctrl
 wire ifetch_to_memctrl_en;

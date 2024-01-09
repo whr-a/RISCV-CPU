@@ -11,6 +11,15 @@ module LSB (
 
     output wire lsb_nxt_full,
 
+    //mem_ctrl
+    output reg mc_en,
+    output reg mc_wr, //if true,it means write
+    output reg [`ADDR_WID] mc_addr,
+    output reg [2:0] mc_len,
+    output reg [`DATA_WID] mc_w_data,
+    input  wire mc_done,
+    input  wire [`DATA_WID] mc_r_data,
+
     //issue
     input wire issue,
     input wire [`ROB_POS_WID] issue_rob_pos,
@@ -21,15 +30,6 @@ module LSB (
     input wire [`DATA_WID] issue_rs2_val,
     input wire [`ROB_ID_WID] issue_rs2_rob_id,
     input wire [`DATA_WID] issue_imm,
-
-    //mem_ctrl
-    output reg mc_en,
-    output reg mc_wr,//if true,it means write
-    output reg [`ADDR_WID] mc_addr,
-    output reg [2:0] mc_len,
-    output reg [`DATA_WID] mc_w_data,
-    input  wire mc_done,
-    input  wire [`DATA_WID] mc_r_data,
 
     //broadcast
     output reg result,
@@ -54,6 +54,9 @@ module LSB (
 );
     integer i;
 
+    reg [`LSB_POS_WID] head, tail;
+    reg [`LSB_ID_WID] last_commit_pos;
+    reg empty, waiting;
     reg busy [`LSB_SIZE-1:0];
     reg is_store [`LSB_SIZE-1:0];
     reg [`FUNCT3_WID] funct3 [`LSB_SIZE-1:0];
@@ -64,12 +67,6 @@ module LSB (
     reg [`DATA_WID] imm [`LSB_SIZE-1:0];
     reg [`ROB_POS_WID] rob_pos [`LSB_SIZE-1:0];
     reg committed [`LSB_SIZE-1:0];
-
-    reg [`LSB_POS_WID] head, tail;
-    reg [`LSB_ID_WID] last_commit_pos;
-    reg empty;
-
-    reg waiting;
 
     wire [`ADDR_WID] head_addr = rs1_val[head] + imm[head];
     wire head_is_io = head_addr[17:16] == 2'b11;
@@ -85,7 +82,26 @@ module LSB (
     assign lsb_nxt_full = (nxt_head == nxt_tail && !nxt_empty);
 
     always @(posedge clk) begin
-        if (rst || (rollback && last_commit_pos == `LSB_NONE)) begin
+        if (rollback && last_commit_pos != `LSB_NONE){
+            tail <= last_commit_pos + 1;//throw things behind last commit(store)
+            for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                if (!committed[i]) begin
+                    busy[i] <= 0;
+                end
+            end
+            if (waiting == 1 && mc_done) begin
+                busy[head] <= 0;
+                committed[head] <= 0;
+                waiting <= 0;
+                mc_en <= 0;
+                head <= head + 1'b1;
+                if (last_commit_pos[`LSB_POS_WID] == head) begin//if head is last commit(store)
+                    last_commit_pos <= `LSB_NONE;
+                    empty <= 1;
+                end
+            end
+        }
+        else if (rst || (rollback && last_commit_pos == `LSB_NONE)) begin
             waiting <= 0;
             mc_en <= 0;
             head <= 0;
@@ -104,45 +120,10 @@ module LSB (
                 rob_pos[i] <= 0;
                 committed[i] <= 0;
             end
-        end else if (rollback) begin
-            tail <= last_commit_pos + 1;//throw things behind last commit(store)
-            for (i = 0; i < `LSB_SIZE; i = i + 1) begin
-                if (!committed[i]) begin
-                    busy[i] <= 0;
-                end
-            end
-            if (waiting == 1 && mc_done) begin
-                busy[head] <= 0;
-                committed[head] <= 0;
-                waiting <= 0;
-                mc_en <= 0;
-                head <= head + 1'b1;
-                if (last_commit_pos[`LSB_POS_WID] == head) begin//if head is last commit(store)
-                    last_commit_pos <= `LSB_NONE;
-                    empty <= 1;
-                end
-            end
         end else if (rdy) begin
             result <= 0;
-            if (waiting == 1 && mc_done) begin
-                busy[head] <= 0;
-                committed[head] <= 0;
-                if (!is_store[head]) begin
-                    result <= 1;
-                    case (funct3[head])
-                    `FUNCT3_LB: result_val <= {{24{mc_r_data[7]}}, mc_r_data[7:0]};
-                    `FUNCT3_LBU: result_val <= {24'b0, mc_r_data[7:0]};
-                    `FUNCT3_LH: result_val <= {{16{mc_r_data[15]}}, mc_r_data[15:0]};
-                    `FUNCT3_LHU: result_val <= {16'b0, mc_r_data[15:0]};
-                    `FUNCT3_LW: result_val <= mc_r_data;
-                    endcase
-                    result_rob_pos <= rob_pos[head];
-                end
-                if (last_commit_pos[`LSB_POS_WID] == head) last_commit_pos <= `LSB_NONE;
-                waiting <= 0;
-                mc_en  <= 0;
-            end 
-            else if(waiting == 0) begin //waiting == 0
+            
+            if(waiting == 0) begin //waiting == 0
                 mc_en <= 0;
                 mc_wr <= 0;
                 if (exec_head) begin
@@ -160,6 +141,24 @@ module LSB (
                     waiting <= 1;
                 end
             end
+            else if (waiting == 1 && mc_done) begin
+                busy[head] <= 0;
+                committed[head] <= 0;
+                if (!is_store[head]) begin
+                    result <= 1;
+                    case (funct3[head])
+                    `FUNCT3_LB: result_val <= {{24{mc_r_data[7]}}, mc_r_data[7:0]};
+                    `FUNCT3_LBU: result_val <= {24'b0, mc_r_data[7:0]};
+                    `FUNCT3_LH: result_val <= {{16{mc_r_data[15]}}, mc_r_data[15:0]};
+                    `FUNCT3_LHU: result_val <= {16'b0, mc_r_data[15:0]};
+                    `FUNCT3_LW: result_val <= mc_r_data;
+                    endcase
+                    result_rob_pos <= rob_pos[head];
+                end
+                if (last_commit_pos[`LSB_POS_WID] == head) last_commit_pos <= `LSB_NONE;
+                waiting <= 0;
+                mc_en  <= 0;
+            end 
 
             //broadcast
             if (alu_result) begin
@@ -188,15 +187,6 @@ module LSB (
             end
 
             //rob commit store
-            if (commit_store) begin
-                for (i = 0; i < `LSB_SIZE; i = i + 1)begin
-                    if (busy[i] && rob_pos[i] == commit_rob_pos && !committed[i]) begin
-                        committed[i] <= 1;
-                        last_commit_pos <= {1'b0, i[`LSB_POS_WID]};
-                    end
-                end
-            end
-
             if (issue) begin
                 busy[tail] <= 1;
                 is_store[tail] <= issue_is_store;
@@ -209,6 +199,16 @@ module LSB (
                 rob_pos[tail] <= issue_rob_pos;
                 tail <= tail + 1'b1;
             end
+
+            if (commit_store) begin
+                for (i = 0; i < `LSB_SIZE; i = i + 1)begin
+                    if (busy[i] && !committed[i] && rob_pos[i] == commit_rob_pos) begin
+                        committed[i] <= 1;
+                        last_commit_pos <= {1'b0, i[`LSB_POS_WID]};
+                    end
+                end
+            end
+
             empty <= nxt_empty;
             head <= nxt_head;
         end

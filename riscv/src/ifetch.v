@@ -6,21 +6,21 @@ module IFetch (
     input wire rst,
     input wire rdy,
 
+    input wire rob_nxt_full,
     input wire rs_nxt_full,
     input wire lsb_nxt_full,
-    input wire rob_nxt_full,
-
-    //to decoder
-    output reg inst_rdy,
-    output reg [`INST_WID] inst,
-    output reg [`ADDR_WID] inst_pc,
-    output reg inst_pred_jump,
 
     //to mem_ctrl
     output reg mc_en,
     output reg [`ADDR_WID] mc_pc,
     input  wire mc_done,
     input  wire [`IF_DATA_WID] mc_data,
+
+    //to decoder
+    output reg inst_rdy,
+    output reg [`INST_WID] inst,
+    output reg [`ADDR_WID] inst_pc,
+    output reg inst_pred_jump,
 
     //rob set pc
     input wire rob_set_pc_en,
