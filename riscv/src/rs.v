@@ -59,7 +59,7 @@ module RS (
     reg ready [`RS_SIZE-1:0];
     reg [`RS_ID_WID] ready_pos, free_pos;
     reg [`RS_ID_WID] empty_count;
-    always @(*) begin
+    always @(*) begin//find free pos and ready pos
         free_pos = `RS_NONE;
         ready_pos = `RS_NONE;
         empty_count = 0;
@@ -106,7 +106,6 @@ module RS (
                     if (rs2_rob_id[i] == {1'b1, lsb_result_rob_pos}) begin
                         rs2_rob_id[i] <= 0;
                         rs2_val[i] <= lsb_result_val;
-                        
                     end
                 end
             end

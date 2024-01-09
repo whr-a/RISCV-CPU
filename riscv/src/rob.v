@@ -49,13 +49,14 @@ module ROB (
     input wire [`ROB_POS_WID] lsb_result_rob_pos,
     input wire [`DATA_WID] lsb_result_val,
 
-    //query from decoder
+    //answer the query from decoder
     input  wire [`ROB_POS_WID] rs1_pos,
     output wire rs1_ready,
     output wire [`DATA_WID] rs1_val,
     input  wire [`ROB_POS_WID] rs2_pos,
     output wire rs2_ready,
     output wire [`DATA_WID] rs2_val,
+
     output wire [`ROB_POS_WID] nxt_rob_pos
 );
 
@@ -71,11 +72,11 @@ module ROB (
     reg [`ROB_POS_WID] head, tail;
     reg empty;
     wire commit = !empty && ready[head];
-    wire [`ROB_POS_WID] nxt_head = head + commit;
-    wire [`ROB_POS_WID] nxt_tail = tail + issue;
-    assign nxt_rob_pos = tail;
-    wire nxt_empty = (nxt_head == nxt_tail && (empty || commit && !issue));
-    assign rob_nxt_full = (nxt_head == nxt_tail && !nxt_empty);
+    wire [`ROB_POS_WID] next_head = head + commit;
+    wire [`ROB_POS_WID] next_tail = tail + issue;
+    assign next_rob_pos = tail;
+    wire next_empty = (next_head == next_tail && (empty || commit && !issue));
+    assign rob_nxt_full = (next_head == next_tail && !next_empty);
 
     assign head_rob_pos = head;
 
@@ -108,7 +109,7 @@ module ROB (
             commit_br <= 0;
         end else if (rdy) begin
 
-            empty <= nxt_empty;
+            empty <= next_empty;
             if (issue) begin
                 rd[tail] <= issue_rd;
                 opcode[tail] <= issue_opcode;

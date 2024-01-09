@@ -31,16 +31,15 @@ module MemCtrl (
     output reg [`DATA_WID] lsb_r_data
 );
     reg [1:0] status;//01 for if, 10 for load, 11 for store
-    reg [`MEM_CTRL_LEN_WID] stage;
-    reg [`MEM_CTRL_LEN_WID] len;
+    reg [`MEM_CTRL_LEN_WID] cur;
+    reg [`MEM_CTRL_LEN_WID] total;
+    reg [7:0] if_data_arr[3:0];//read from memory
     reg [`ADDR_WID] store_addr;
-    reg [7:0] if_data_arr[`MEM_CTRL_IF_DATA_LEN-1:0];//read from memory
 
-    genvar x;
-    generate
-        for (x = 0; x < `MEM_CTRL_IF_DATA_LEN; x = x + 1)
-            assign if_data[x * 8 + 7 : x * 8] = if_data_arr[x];
-    endgenerate
+    assign if_data[7:0] = if_data_arr[0];
+    assign if_data[15:8] = if_data_arr[1];
+    assign if_data[23:16] = if_data_arr[2];
+    assign if_data[31:24] = if_data_arr[3];
 
     always @(posedge clk) begin
         if (rst) begin
@@ -58,17 +57,17 @@ module MemCtrl (
             mem_wr <= 0;
             case (status)
                 2'b01: begin//ifetch
-                    if_data_arr[stage-1] <= mem_din;
-                    if (stage + 1 == len) mem_a <= 0;
+                    if_data_arr[cur-1] <= mem_din;
+                    if (cur + 1 == total) mem_a <= 0;
                     else mem_a <= mem_a + 1;
-                    if (stage == len) begin
+                    if (cur == total) begin
                         if_done <= 1;
                         mem_wr <= 0;
                         mem_a <= 0;
-                        stage <= 0;
+                        cur <= 0;
                         status <= 2'b0;
                     end else begin
-                        stage <= stage + 1;
+                        cur <= cur + 1;
                     end
                 end
                 2'b10: begin//load
@@ -76,52 +75,53 @@ module MemCtrl (
                         lsb_done <= 0;
                         mem_wr <= 0;
                         mem_a <= 0;
-                        stage <= 0;
+                        cur <= 0;
                         status <= 2'b0;
                     end else begin
-                        case (stage)
+                        case (cur)
                         1: lsb_r_data[7:0] <= mem_din;
                         2: lsb_r_data[15:8] <= mem_din;
                         3: lsb_r_data[23:16] <= mem_din;
                         4: lsb_r_data[31:24] <= mem_din;
                         endcase
-                        if (stage + 1 == len) mem_a <= 0;
+                        if (cur + 1 == total) mem_a <= 0;
                         else mem_a <= mem_a + 1;
-                        if (stage == len) begin
+                        if (cur == total) begin
                             lsb_done <= 1;
                             mem_wr <= 0;
                             mem_a <= 0;
-                            stage <= 0;
+                            cur <= 0;
                             status <= 2'b0;
                         end else begin
-                            stage <= stage + 1;
+                            cur <= cur + 1;
                         end
                     end
                 end
                 2'b11: begin//store
                     if (store_addr[17:16] != 2'b11 || !io_buffer_full) begin
                         mem_wr <= 1;
-                        case (stage)
+                        case (cur)
                         0: mem_dout <= lsb_w_data[7:0];
                         1: mem_dout <= lsb_w_data[15:8];
                         2: mem_dout <= lsb_w_data[23:16];
                         3: mem_dout <= lsb_w_data[31:24];
                         endcase
-                        if (stage == 0) mem_a <= store_addr;
+                        if (cur == 0) mem_a <= store_addr;
                         else mem_a <= mem_a + 1;
-                        if (stage == len) begin
+                        if (cur == total) begin
                             lsb_done <= 1;
                             mem_wr <= 0;
                             mem_a <= 0;
-                            stage <= 0;
+                            cur <= 0;
                             status <= 2'b0;
                         end else begin
-                            stage <= stage + 1;
+                            cur <= cur + 1;
                         end
                     end
                 end
-                2'b0: begin//idle
+                2'b0: begin
                     if (if_done || lsb_done) begin
+                        //spare a cycle to tell lsb or ifetch done
                         if_done <= 0;
                         lsb_done <= 0;
                     end else if (!rollback) begin
@@ -129,18 +129,19 @@ module MemCtrl (
                             if (lsb_wr) begin
                                 status <= 2'b11;
                                 store_addr <= lsb_addr;
-                            end else begin
+                            end
+                            else begin
                                 status <= 2'b10;
                                 mem_a <= lsb_addr;
                                 lsb_r_data <= 0;
                             end
-                            stage <= 0;
-                            len <= {4'b0, lsb_len};
+                            cur <= 0;
+                            total <= {4'b0, lsb_len};
                         end else if (if_en) begin
                             status <= 2'b01;
                             mem_a <= if_pc;
-                            stage <= 0;
-                            len <= `MEM_CTRL_IF_DATA_LEN;
+                            cur <= 0;
+                            total <= 4;
                         end
                     end
                 end

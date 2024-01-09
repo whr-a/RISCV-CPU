@@ -23,7 +23,7 @@ module Decoder ( //totally combinational
     output reg [`REG_POS_WID] rd,
     output reg [`ADDR_WID] pc,
     output reg pred_jump,
-    output reg is_ready,
+    output reg is_ready,//only true when it is store, tell the rob whether it can be committed directly.
 
     //from ifetch
     input wire inst_rdy,
@@ -32,7 +32,7 @@ module Decoder ( //totally combinational
     input wire inst_pred_jump,
 
     //from regfile
-    output wire [`REG_POS_WID] reg_rs1,
+    output wire [`REG_POS_WID] reg_rs1,//query to regfile with a reg_id
     input  wire [`DATA_WID] reg_rs1_val,
     input  wire [`ROB_ID_WID] reg_rs1_rob_id,
     output wire [`REG_POS_WID] reg_rs2,
