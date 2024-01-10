@@ -1,15 +1,11 @@
 `ifndef LSB
 `define LSB
 `include "setsize.v"
-
 module LSB (
     input wire clk,
     input wire rst,
     input wire rdy,
-
     input wire rollback,
-
-    output wire lsb_nxt_full,
 
     //mem_ctrl
     output reg mc_en,
@@ -50,12 +46,14 @@ module LSB (
     input wire [`ROB_POS_WID] commit_rob_pos,
 
     //for IO
-    input wire [`ROB_POS_WID] head_rob_pos
+    input wire [`ROB_POS_WID] head_rob_pos,
+
+    output wire lsb_nxt_full
 );
     integer i;
 
     reg [`LSB_POS_WID] head, tail;
-    reg [`LSB_ID_WID] last_commit_pos;
+    reg [`LSB_ID_WID] final_store_pos;
     reg busy [`LSB_SIZE-1:0];
     reg empty;
     reg waiting;
@@ -84,46 +82,54 @@ module LSB (
     assign lsb_nxt_full = (nxt_head == nxt_tail && !nxt_empty);
 
     always @(posedge clk) begin
-        if (rst || (rollback && last_commit_pos == `LSB_NONE)) begin
-            waiting <= 0;
-            mc_en <= 0;
+        if (rst) begin
             head <= 0;
             tail <= 0;
-            last_commit_pos <= `LSB_NONE;
+            waiting <= 0;
+            mc_en <= 0;
             empty <= 1;
+            final_store_pos <= `LSB_NONE;
             for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                committed[i] <= 0;
                 busy[i] <= 0;
                 is_store[i] <= 0;
-                funct3[i] <= 0;
-                rs1_rob_id[i] <= 0;
                 rs1_val[i] <= 0;
-                rs2_rob_id[i] <= 0;
+                rs1_rob_id[i] <= 0;
                 rs2_val[i] <= 0;
+                rs2_rob_id[i] <= 0;
+                funct3[i] <= 0;
                 imm[i] <= 0;
                 rob_pos[i] <= 0;
-                committed[i] <= 0;
             end
-        end else if (rollback) begin
-            tail <= last_commit_pos + 1;//throw things behind last commit(store)
-            for (i = 0; i < `LSB_SIZE; i = i + 1) begin
-                if (!committed[i]) begin
-                    busy[i] <= 0;
+
+        end else if (rdy && !rollback) begin
+            //from broadcast
+            if (alu_result) begin
+                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                    if (rs1_rob_id[i] == {1'b1, alu_result_rob_pos}) begin
+                        rs1_rob_id[i] <= 0;
+                        rs1_val[i] <= alu_result_val;
+                    end
+                    if (rs2_rob_id[i] == {1'b1, alu_result_rob_pos}) begin
+                        rs2_rob_id[i] <= 0;
+                        rs2_val[i] <= alu_result_val;
+                    end
                 end
             end
-            if (waiting == 1 && mc_done) begin
-                busy[head] <= 0;
-                committed[head] <= 0;
-                waiting <= 0;
-                mc_en <= 0;
-                head <= head + 1'b1;
-                if (last_commit_pos[`LSB_POS_WID] == head) begin//if head is last commit(store)
-                    last_commit_pos <= `LSB_NONE;
-                    empty <= 1;
+            if (lsb_result) begin
+                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                    if (rs1_rob_id[i] == {1'b1, lsb_result_rob_pos}) begin
+                        rs1_rob_id[i] <= 0;
+                        rs1_val[i] <= lsb_result_val;
+                    end
+                    if (rs2_rob_id[i] == {1'b1, lsb_result_rob_pos}) begin
+                        rs2_rob_id[i] <= 0;
+                        rs2_val[i] <= lsb_result_val;
+                    end
                 end
             end
-        end else if (rdy) begin
+
             result <= 0;
-            
             if(waiting == 0) begin //waiting == 0
                 mc_en <= 0;
                 mc_wr <= 0;
@@ -156,36 +162,12 @@ module LSB (
                     endcase
                     result_rob_pos <= rob_pos[head];
                 end
-                if (last_commit_pos[`LSB_POS_WID] == head) last_commit_pos <= `LSB_NONE;
+                if (final_store_pos[`LSB_POS_WID] == head) final_store_pos <= `LSB_NONE;
                 waiting <= 0;
                 mc_en  <= 0;
             end 
 
-            //broadcast
-            if (alu_result) begin
-                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
-                    if (rs1_rob_id[i] == {1'b1, alu_result_rob_pos}) begin
-                        rs1_rob_id[i] <= 0;
-                        rs1_val[i] <= alu_result_val;
-                    end
-                    if (rs2_rob_id[i] == {1'b1, alu_result_rob_pos}) begin
-                        rs2_rob_id[i] <= 0;
-                        rs2_val[i] <= alu_result_val;
-                    end
-                end
-            end
-            if (lsb_result) begin
-                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
-                    if (rs1_rob_id[i] == {1'b1, lsb_result_rob_pos}) begin
-                        rs1_rob_id[i] <= 0;
-                        rs1_val[i] <= lsb_result_val;
-                    end
-                    if (rs2_rob_id[i] == {1'b1, lsb_result_rob_pos}) begin
-                        rs2_rob_id[i] <= 0;
-                        rs2_val[i] <= lsb_result_val;
-                    end
-                end
-            end
+            
 
             if (issue) begin
                 busy[tail] <= 1;
@@ -199,18 +181,59 @@ module LSB (
                 rob_pos[tail] <= issue_rob_pos;
                 tail <= tail + 1'b1;
             end
-            //rob commit store
+
+            //commit store from rob
             if (commit_store) begin
                 for (i = 0; i < `LSB_SIZE; i = i + 1)begin
                     if (busy[i] && rob_pos[i] == commit_rob_pos && !committed[i]) begin
                         committed[i] <= 1;
-                        last_commit_pos <= {1'b0, i[`LSB_POS_WID]};
+                        final_store_pos <= {1'b0, i[`LSB_POS_WID]};
                     end
                 end
             end
 
             empty <= nxt_empty;
             head <= nxt_head;
+        end else if (rollback) begin
+            if(final_store_pos == `LSB_NONE)begin
+                head <= 0;
+                tail <= 0;
+                waiting <= 0;
+                mc_en <= 0;
+                empty <= 1;
+                final_store_pos <= `LSB_NONE;
+                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                    committed[i] <= 0;
+                    busy[i] <= 0;
+                    is_store[i] <= 0;
+                    rs1_val[i] <= 0;
+                    rs1_rob_id[i] <= 0;
+                    rs2_val[i] <= 0;
+                    rs2_rob_id[i] <= 0;
+                    funct3[i] <= 0;
+                    imm[i] <= 0;
+                    rob_pos[i] <= 0;
+                end
+            end
+            else begin
+                tail <= final_store_pos + 1;//throw things behind last commit(store)
+                for (i = 0; i < `LSB_SIZE; i = i + 1) begin
+                    if (!committed[i]) begin
+                        busy[i] <= 0;
+                    end
+                end
+                if (waiting == 1 && mc_done) begin
+                    busy[head] <= 0;
+                    committed[head] <= 0;
+                    waiting <= 0;
+                    mc_en <= 0;
+                    head <= head + 1'b1;
+                    if (final_store_pos[`LSB_POS_WID] == head) begin//if head is last commit(store)
+                        final_store_pos <= `LSB_NONE;
+                        empty <= 1;
+                    end
+                end
+            end
         end
     end
 endmodule

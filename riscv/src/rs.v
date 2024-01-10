@@ -59,6 +59,7 @@ module RS (
     reg ready [`RS_SIZE-1:0];
     reg [`RS_ID_WID] ready_pos, free_pos;
     reg [`RS_ID_WID] empty_count;
+    //find free_pos and ready_pos
     always @(*) begin
         free_pos = `RS_NONE;
         ready_pos = `RS_NONE;
@@ -79,11 +80,10 @@ module RS (
     end
     always @(posedge clk) begin
         if (rst || rollback) begin
-            for (i = 0; i < `RS_SIZE; i = i + 1) begin
-                busy[i] <= 0;
-            end
+            for (i = 0; i < `RS_SIZE; i = i + 1) busy[i] <= 0;
             alu_en <= 0;
-        end else if (rdy) begin
+        end
+        else if (rdy) begin
             //update
             if (alu_result)begin
                 for (i = 0; i < `RS_SIZE; i = i + 1) begin

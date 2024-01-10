@@ -5,10 +5,9 @@ module ALU (
     input wire clk,
     input wire rst,
     input wire rdy,
-
     input wire rollback,
 
-    //from RS
+    //RS -> ALU
     input wire alu_en,
     input wire [`ROB_POS_WID] rob_pos,
     input wire [`OPCODE_WID] opcode,
@@ -39,23 +38,23 @@ module ALU (
         `FUNCT3_XOR: ans = num1 ^ num2;
         `FUNCT3_OR: ans = num1 | num2;
         `FUNCT3_AND: ans = num1 & num2;
+        `FUNCT3_SLT: ans = ($signed(num1) < $signed(num2));
+        `FUNCT3_SLTU: ans = (num1 < num2);
         `FUNCT3_SLL: ans = num1 << num2;
         `FUNCT3_SRL:
             if (funct7) ans = $signed(num1) >> num2[5:0];
             else ans = num1 >> num2[5:0];
-        `FUNCT3_SLT: ans = ($signed(num1) < $signed(num2));
-        `FUNCT3_SLTU: ans = (num1 < num2);
         endcase
     end
 
     reg jump;
     always @(*) begin
         case (funct3)
-        `FUNCT3_BEQ: jump = (val1 == val2);
         `FUNCT3_BNE: jump = (val1 != val2);
+        `FUNCT3_BEQ: jump = (val1 == val2);
         `FUNCT3_BLT: jump = ($signed(val1) < $signed(val2));
-        `FUNCT3_BGE: jump = ($signed(val1) >= $signed(val2));
         `FUNCT3_BLTU: jump = (val1 < val2);
+        `FUNCT3_BGE: jump = ($signed(val1) >= $signed(val2));
         `FUNCT3_BGEU: jump = (val1 >= val2);
         default: jump = 0;
         endcase
@@ -76,7 +75,8 @@ module ALU (
                 result_rob_pos <= rob_pos;
                 result_jump <= 0;
                 case (opcode)
-                `OPCODE_CALCU, `OPCODE_CALCUI: result_val <= ans;
+                `OPCODE_CALCU: result_val <= ans;
+                `OPCODE_CALCUI: result_val <= ans;
                 `OPCODE_BR:
                     if (jump) begin
                         result_jump <= 1;
@@ -84,6 +84,8 @@ module ALU (
                     end else begin
                         result_pc <= pc + 4;
                     end
+                `OPCODE_LUI: result_val <= imm;
+                `OPCODE_AUIPC: result_val <= pc + imm;
                 `OPCODE_JAL: begin
                     result_jump <= 1;
                     result_val <= pc + 4;
@@ -94,8 +96,6 @@ module ALU (
                     result_val <= pc + 4;
                     result_pc <= val1 + imm;
                 end
-                `OPCODE_LUI: result_val <= imm;
-                `OPCODE_AUIPC: result_val <= pc + imm;
                 endcase
             end
         end

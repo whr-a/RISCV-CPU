@@ -6,25 +6,25 @@ module IFetch (
     input wire rst,
     input wire rdy,
 
+    input wire rob_nxt_full,
     input wire rs_nxt_full,
     input wire lsb_nxt_full,
-    input wire rob_nxt_full,
+
+    //rob set pc
+    input wire rob_set_pc_en,
+    input wire [`ADDR_WID] rob_set_pc,
+
+    //cache miss
+    output reg mc_en,
+    output reg [`ADDR_WID] mc_pc,
+    input  wire mc_done,
+    input  wire [`IF_DATA_WID] mc_data,
 
     //to decoder
     output reg inst_rdy,
     output reg [`INST_WID] inst,
     output reg [`ADDR_WID] inst_pc,
     output reg inst_pred_jump,
-
-    //to mem_ctrl
-    output reg mc_en,
-    output reg [`ADDR_WID] mc_pc,
-    input  wire mc_done,
-    input  wire [`IF_DATA_WID] mc_data,
-
-    //rob set pc
-    input wire rob_set_pc_en,
-    input wire [`ADDR_WID] rob_set_pc,
 
     //rob update bht
     input wire rob_br,
@@ -40,7 +40,6 @@ module IFetch (
     reg [`ICACHE_TAG_WID] tag[`ICACHE_BLK_NUM-1:0];
     reg [`ICACHE_BLK_WID] data[`ICACHE_BLK_NUM-1:0];//512*4 byte
 
-    // Branch Predictor
     reg [`ADDR_WID] pred_pc;
     reg pred_jump;
 
@@ -81,10 +80,10 @@ module IFetch (
             pc <= 32'b0;
             mc_pc <= 32'b0;
             mc_en <= 0;
-            for (i = 0; i < `ICACHE_BLK_NUM; i = i + 1) valid[i] <= 0;
             inst_rdy <= 0;
             status <= 1'b0;
             for (i = 0; i < `BHT_SIZE; i = i + 1) bht[i] <= 0;
+            for (i = 0; i < `ICACHE_BLK_NUM; i = i + 1) valid[i] <= 0;
         end
         else if (rdy) begin
             if (rob_set_pc_en) begin
@@ -97,7 +96,8 @@ module IFetch (
                     inst_pc <= pc;
                     pc <= pred_pc;
                     inst_pred_jump <= pred_jump;
-                end else inst_rdy <= 0;
+                end
+                else inst_rdy <= 0;
             end
             if (status == 1'b0) begin
                 if (!hit) begin
