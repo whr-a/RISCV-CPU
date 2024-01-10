@@ -14,8 +14,6 @@
 `define ICACHE_BLK_NUM 512
 `define ICACHE_BLK_SIZE 1
 `define ICACHE_BLK_WID 31:0
-// `define ICACHE_BS_RANGE 5:2
-// `define ICACHE_BS_WID 3:0
 `define ICACHE_IDX_RANGE 10:2
 `define ICACHE_IDX_WID 8:0
 `define ICACHE_TAG_RANGE 31:11
